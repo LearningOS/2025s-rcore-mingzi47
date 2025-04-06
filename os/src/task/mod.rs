@@ -135,6 +135,34 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+
+    /// 读取当前任务 offset 偏移地址处一个字节的无符号整数值。
+    fn watch_current_task_mem_by_address(&self, address: usize) -> u8 {
+        // let inner = self.inner.exclusive_access();
+        let ptr = address as *const u8;
+
+        unsafe {
+            ptr.read()
+        }
+    }
+
+    /// 修改当前任务 offset 偏移地址处一个字节的无符号整数值。
+    fn mod_current_task_mem_by_address(&self, address: usize, data: u8) {
+        // let inner = self.inner.exclusive_access();
+        let  ptr = address as *mut u8;
+
+        unsafe {
+            ptr.write_volatile(data)
+        };
+    }
+
+    /// 获得当前任务id
+    fn get_current_task_id(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+
+        inner.current_task
+    }
 }
 
 /// Run the first task in task list.
@@ -168,4 +196,21 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+
+/// 读取当前任务 offset 偏移地址处一个字节的无符号整数值。
+pub fn watch_current_task_mem_by_address(address: usize) -> u8 {
+    TASK_MANAGER.watch_current_task_mem_by_address(address)
+}
+
+
+/// 修改当前任务 offset 偏移地址处一个字节的无符号整数值。
+pub fn mod_current_task_mem_by_address(address: usize, data: u8) {
+    TASK_MANAGER.mod_current_task_mem_by_address(address, data);
+}
+
+/// 获得当前任务id
+pub fn get_current_task_id() -> usize {
+    TASK_MANAGER.get_current_task_id()
 }
