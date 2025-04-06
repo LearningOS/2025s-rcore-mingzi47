@@ -14,7 +14,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -54,6 +54,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_call_syscall_count: [0; MAX_SYSCALL_NUM],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -157,11 +158,23 @@ impl TaskManager {
         };
     }
 
-    /// 获得当前任务id
-    fn get_current_task_id(&self) -> usize {
-        let inner = self.inner.exclusive_access();
+    /// 记录当前任务的系统调用
+    fn add_current_count_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
 
-        inner.current_task
+        if let Some(count) = inner.tasks[current].task_call_syscall_count.get_mut(syscall_id) {
+            *count += 1;
+        }
+    }
+
+    /// 查看当前任务的系统调用
+    fn get_current_count_syscall(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        *(inner.tasks[current].task_call_syscall_count
+            .get(syscall_id).unwrap_or(&0))
     }
 }
 
@@ -210,7 +223,13 @@ pub fn mod_current_task_mem_by_address(address: usize, data: u8) {
     TASK_MANAGER.mod_current_task_mem_by_address(address, data);
 }
 
-/// 获得当前任务id
-pub fn get_current_task_id() -> usize {
-    TASK_MANAGER.get_current_task_id()
+/// 记录当前任务的系统调用
+pub fn add_current_count_syscall(syscall_id: usize) {
+    TASK_MANAGER.add_current_count_syscall(syscall_id);
 }
+
+/// 查看当前任务的系统调用
+pub fn get_current_count_syscall(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_current_count_syscall(syscall_id)
+}
+
