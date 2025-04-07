@@ -11,7 +11,7 @@ pub struct TaskControlBlock {
     pub task_status: TaskStatus,
     /// The task context
     pub task_cx: TaskContext,
-    /// count syscall in self, task_call_syscall_count.get(syscall_id)
+    /// count syscall in self, `task_call_syscall_count[syscall_id]`
     pub task_call_syscall_count: [usize; MAX_SYSCALL_NUM],
 }
 
