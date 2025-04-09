@@ -1,14 +1,15 @@
 //! Process management syscalls
-use core::mem;
+use core::{mem, u64::MAX};
 
 use alloc::sync::Arc;
 
 use crate::{
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_byte_buffer, translated_str},
+    mm::{translated_refmut, translated_byte_buffer, translated_str, translated_byte_and_check, PTEFlags},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
+        mmap, munmap,
     },
     timer::get_time_us,
 };
@@ -145,22 +146,35 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-/// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+/// start 需要映射的虚存起始地址，要求按页对齐
+/// len 映射字节长度，可以为 0
+/// port: 第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+/// return 执行成功则返回 0，错误返回 -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if port == 0 {
+        return -1;
+    }
+
+    // 除了第三位，其余必须为 0
+    if (port & (MAX - 0b111) as usize) != 0 {
+        return -1;
+    }
+
+    mmap(start, len, port)
 }
 
-/// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+/// 
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    munmap(start, len)
 }
 
 /// change data segment size
