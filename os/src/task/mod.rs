@@ -153,6 +153,38 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    // 根据syscall_id 增加当前任务的系统调用计数
+    fn add_current_task_syscall_count(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let vec = &mut inner.tasks[current].trace_syscall_count;
+
+        if let Some((_, count)) = vec
+            .iter_mut()
+            .find(|e| e.0 == syscall_id)
+        {
+            *count += 1;
+        } else {
+            vec.push((syscall_id, 1));
+        }
+    }
+
+    // 根据syscall_id 查看当前任务的系统调用计数
+    fn get_current_task_syscall_count(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        if let Some((_, count)) = inner.tasks[current].trace_syscall_count
+            .iter()
+            .find(|e| e.0 == syscall_id)
+        {
+            *count
+
+        } else {
+            0
+        }
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +233,14 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// 根据syscall_id 增加当前任务的系统调用计数
+pub fn add_current_task_syscall_count(syscall_id: usize) {
+    TASK_MANAGER.add_current_task_syscall_count(syscall_id);
+}
+
+/// 根据syscall_id 查看当前任务的系统调用计数
+pub fn get_current_task_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_current_task_syscall_count(syscall_id)
 }

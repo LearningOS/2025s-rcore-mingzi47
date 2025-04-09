@@ -1,7 +1,7 @@
 //! Process management syscalls
 use core::mem;
 
-use crate::{mm::translated_byte_buffer, task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{mm::{translated_byte_and_check, translated_byte_buffer, PTEFlags}, task::{change_program_brk, current_user_token, exit_current_and_run_next, get_current_task_syscall_count, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -9,6 +9,10 @@ pub struct TimeVal {
     pub sec: usize,
     pub usec: usize,
 }
+
+const TRACE_READ: usize = 0;
+const TRACE_WRITE: usize = 1;
+const TRACE_COUNT: usize = 2;
 
 /// task exits and submit an exit code
 pub fn sys_exit(_exit_code: i32) -> ! {
@@ -63,9 +67,38 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    match trace_request {
+        TRACE_READ => {
+            if let Some(byte) = translated_byte_and_check(
+                current_user_token(),
+                id as *const u8,
+                PTEFlags::R | PTEFlags::U,
+            ) {
+                let v = *byte;
+                v as isize
+            } else {
+                -1
+            }
+        },
+        TRACE_WRITE => {
+            if let Some(byte) = translated_byte_and_check(
+                current_user_token(),
+                id as *const u8,
+                PTEFlags::W | PTEFlags::U,
+            ) {
+                *byte = data as u8;
+                0
+            } else {
+                -1
+            }
+        },
+        TRACE_COUNT => {
+            get_current_task_syscall_count(id) as isize
+        }
+        _ => -1,
+    }
 }
 
 // YOUR JOB: Implement mmap.

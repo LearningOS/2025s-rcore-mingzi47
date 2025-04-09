@@ -179,3 +179,21 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     }
     v
 }
+
+/// 通过页表 translated u8 ptr, 并且检查PTEFlags
+/// 如果PTEFlags 没有都满足，返回值为 None
+/// 没有找到页表项，返回值为 None
+pub fn translated_byte_and_check(token: usize, ptr: *const u8, flag: PTEFlags) -> Option<&'static mut u8> {
+    let page_table = PageTable::from_token(token);
+    let ptr_va = VirtAddr::from(ptr as usize);
+    let vpn = ptr_va.floor();
+    if let Some(pte) = page_table.translate(vpn){
+        if (pte.flags() & flag) != flag {
+            return None;
+        }
+        let ppn = pte.ppn();
+        Some(&mut ppn.get_bytes_array()[ptr_va.page_offset()])
+    } else {
+        None
+    }
+}
