@@ -185,6 +185,22 @@ impl TaskManager {
             0
         }
     }
+
+    // 
+    fn mmap(&self, start:usize, len: usize, port: usize,) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].memory_set.mmap(start, len, port)
+    }
+
+    // 
+    fn munmap(&self, start: usize, len: usize,) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].memory_set.munmap(start, len)
+    }
 }
 
 /// Run the first task in task list.
@@ -243,4 +259,16 @@ pub fn add_current_task_syscall_count(syscall_id: usize) {
 /// 根据syscall_id 查看当前任务的系统调用计数
 pub fn get_current_task_syscall_count(syscall_id: usize) -> usize {
     TASK_MANAGER.get_current_task_syscall_count(syscall_id)
+}
+
+/// start_va: 开始的虚拟地址
+/// end_va: 结束的虚拟地址
+/// perm: 权限
+pub fn mmap(start: usize, len: usize, port: usize) -> isize {
+    TASK_MANAGER.mmap(start, len, port)
+}
+
+/// 
+pub fn munmap(start: usize, len: usize) -> isize {
+    TASK_MANAGER.munmap(start, len)
 }

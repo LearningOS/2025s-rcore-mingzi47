@@ -1,7 +1,7 @@
 //! Process management syscalls
-use core::mem;
+use core::{mem, u64::MAX};
 
-use crate::{mm::{translated_byte_and_check, translated_byte_buffer, PTEFlags}, task::{change_program_brk, current_user_token, exit_current_and_run_next, get_current_task_syscall_count, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{mm::{translated_byte_and_check, translated_byte_buffer, PTEFlags}, task::{ change_program_brk, current_user_token, exit_current_and_run_next, get_current_task_syscall_count, mmap, munmap, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -101,16 +101,29 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     }
 }
 
-// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+/// start 需要映射的虚存起始地址，要求按页对齐
+/// len 映射字节长度，可以为 0
+/// port: 第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+/// return 执行成功则返回 0，错误返回 -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    trace!("kernel: sys_mmap");
+    if port == 0 {
+        return -1;
+    }
+
+    // 除了第三位，其余必须为 0
+    if (port & (MAX - 0b111) as usize) != 0 {
+        return -1;
+    }
+
+    mmap(start, len, port)
 }
 
-// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+/// 
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap!");
+
+    munmap(start, len)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

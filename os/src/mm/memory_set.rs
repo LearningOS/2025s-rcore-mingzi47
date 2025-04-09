@@ -37,6 +37,7 @@ lazy_static! {
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
+    map_tree: BTreeMap<VirtPageNum, FrameTracker>,
 }
 
 impl MemorySet {
@@ -45,6 +46,7 @@ impl MemorySet {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
+            map_tree: BTreeMap::new(),
         }
     }
     /// Get the page table token
@@ -63,6 +65,86 @@ impl MemorySet {
             None,
         );
     }
+
+    ///
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
+        let start_va: VirtAddr = start.into();
+        if !start_va.aligned() {
+            return -1;
+        }
+
+        let end_va: VirtAddr = (start + len).into();
+        // port: 第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+        let port = ((port << 1) & 0b11111) as u8;
+        let permission = PTEFlags::from_bits(port).unwrap()
+            | PTEFlags::U
+            | PTEFlags::V;
+
+        let mut start_vpn: VirtPageNum = start_va.into();
+        let end_vpn: VirtPageNum = end_va.ceil();
+
+        while start_vpn < end_vpn {
+            if let Some(pte) = self.page_table.translate(start_vpn) {
+                // 当前物理页被映射过了
+                if pte.is_valid() {
+                    let va: usize = start_vpn.into();
+                    debug!("already map, va = {} ", va);
+                    return -1;
+                }
+            }
+
+            // 分配物理页
+            if let Some(frame_tracker) = frame_alloc() {
+                let ppn = frame_tracker.ppn;
+                self.page_table.map(
+                    start_vpn,
+                    ppn,
+                    permission
+                );
+
+                self.map_tree.insert(start_vpn, frame_tracker);
+            } else {
+                debug!("alloc failed");
+                return -1;
+            }
+
+            start_vpn.step()
+        }
+
+        0
+    }
+
+    /// 
+    pub fn munmap(&mut self, start: usize, len: usize) -> isize {
+        let start_va: VirtAddr = start.into();
+        if !start_va.aligned() {
+            return -1;
+        }
+
+        let end_va: VirtAddr = (start + len).into();
+
+        let mut start_vpn: VirtPageNum = start_va.into();
+        let end_vpn = end_va.ceil();
+        
+        while start_vpn < end_vpn {
+            if let Some(pte) = self.page_table.translate(start_vpn) {
+                // 存在没有映射的地址
+                if !pte.is_valid() {
+                    let va : usize = start_va.into();
+                    debug!("no map, va = {}", va);
+                    return -1;
+                }
+            }
+
+            self.page_table.unmap(start_vpn);
+            self.map_tree.remove(&start_vpn);
+
+            start_vpn.step();
+        }
+
+        0
+    }
+
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
