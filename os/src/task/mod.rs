@@ -201,6 +201,14 @@ impl TaskManager {
 
         inner.tasks[current].memory_set.munmap(start, len)
     }
+
+    // 
+    fn lazy_mmap(&self, addr: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+
+        inner.tasks[current].memory_set.lazy_mmap(addr)
+    }
 }
 
 /// Run the first task in task list.
@@ -271,4 +279,10 @@ pub fn mmap(start: usize, len: usize, port: usize) -> isize {
 /// 
 pub fn munmap(start: usize, len: usize) -> isize {
     TASK_MANAGER.munmap(start, len)
+}
+
+
+/// 
+pub fn lazy_mmap(addr: usize) -> isize {
+    TASK_MANAGER.lazy_mmap(addr)
 }

@@ -1,5 +1,7 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
+use crate::task::lazy_mmap;
+
 use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -27,7 +29,7 @@ bitflags! {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 /// page table entry structure
 pub struct PageTableEntry {
@@ -107,9 +109,13 @@ impl PageTable {
                 break;
             }
             if !pte.is_valid() {
-                let frame = frame_alloc().unwrap();
-                *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
-                self.frames.push(frame);
+                // let frame = frame_alloc().unwrap();
+                if let Some(frame) = frame_alloc() {
+                    *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
+                    self.frames.push(frame);
+                } else {
+                    debug!("find_pte_create frame_alloc failed");
+                }
             }
             ppn = pte.ppn();
         }
@@ -130,6 +136,7 @@ impl PageTable {
                 return None;
             }
             ppn = pte.ppn();
+
         }
         result
     }
@@ -151,6 +158,13 @@ impl PageTable {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn).map(|pte| *pte)
     }
+    /// get the page table entry from the virtual page number, and include mmap
+    pub fn translate_with_mmap(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        let addr: VirtAddr = vpn.into();
+        lazy_mmap(addr.into());
+
+        self.find_pte(vpn).map(|pte| *pte)
+    }
     /// get the token from the page table
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
@@ -166,7 +180,7 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     while start < end {
         let start_va = VirtAddr::from(start);
         let mut vpn = start_va.floor();
-        let ppn = page_table.translate(vpn).unwrap().ppn();
+        let ppn = page_table.translate_with_mmap(vpn).unwrap().ppn();
         vpn.step();
         let mut end_va: VirtAddr = vpn.into();
         end_va = end_va.min(VirtAddr::from(end));
@@ -187,13 +201,15 @@ pub fn translated_byte_and_check(token: usize, ptr: *const u8, flag: PTEFlags) -
     let page_table = PageTable::from_token(token);
     let ptr_va = VirtAddr::from(ptr as usize);
     let vpn = ptr_va.floor();
-    if let Some(pte) = page_table.translate(vpn){
+    if let Some(pte) = page_table.translate_with_mmap(vpn){
         if (pte.flags() & flag) != flag {
+            debug!("pte.flags = {:#?}, flag = {:#?}", pte.flags(), flag);
             return None;
         }
         let ppn = pte.ppn();
         Some(&mut ppn.get_bytes_array()[ptr_va.page_offset()])
     } else {
+        debug!("not in page_table");
         None
     }
 }

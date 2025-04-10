@@ -71,6 +71,7 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
     match trace_request {
         TRACE_READ => {
+            debug!("sys_trace, request = {}, id = {}", trace_request, id);
             if let Some(byte) = translated_byte_and_check(
                 current_user_token(),
                 id as *const u8,
@@ -101,10 +102,15 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     }
 }
 
-/// start 需要映射的虚存起始地址，要求按页对齐
-/// len 映射字节长度，可以为 0
-/// port: 第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
-/// return 执行成功则返回 0，错误返回 -1
+/// 基于Lazy 策略的 mmap, 支持超过物理内存的虚拟内存
+/// 设计思路：
+///     - 单独使用一个容器存放mmap申请的虚拟内存, 与其他内存映射做区分，方便判断逻辑的实现;
+///     - 容器结构为: `BTreeMap<VirtPageNum, (Option<FrameTracker>, PTEFlags)>`;
+///     - 申请内存时，不会为虚拟内存映射物理内存，因此需要用 **空** 来表示当前的物理内存，因此使用 `Option` 包裹，初始为 `None`, 实际映射物理内存后才有实际的值;
+///     - 同时，也不会将虚拟页码插入到 `page_table` 当中，因此 `PTEFlags` 也需要记录。
+///     - 在`trap_handler` 的缺页异常处理中调用 `lazy_mmap` 来实际映射物理内存;
+/// 需要注意：只有在 U 态可以正常触发缺页异常，因此为了在 S 态正常使用 mmap
+/// 申请的内存，还需有额外实现函数。这里使用了`translate_with_mmap` 。
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap");
     if port == 0 {
@@ -119,7 +125,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     mmap(start, len, port)
 }
 
-/// 
+/// 卸载 mmap 映射的内存
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap!");
 
