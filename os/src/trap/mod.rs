@@ -17,7 +17,7 @@ mod context;
 use crate::config::{TRAMPOLINE, TRAP_CONTEXT_BASE};
 use crate::syscall::syscall;
 use crate::task::{
-    current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next,
+    current_trap_cx, current_user_token, exit_current_and_run_next, lazy_mmap, suspend_current_and_run_next
 };
 use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
@@ -77,14 +77,17 @@ pub fn trap_handler() -> ! {
         | Trap::Exception(Exception::InstructionPageFault)
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
-            println!(
-                "[kernel] trap_handler:  {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
-                scause.cause(),
-                stval,
-                current_trap_cx().sepc,
-            );
-            // page fault exit code
-            exit_current_and_run_next(-2);
+            let start = stval;
+            if lazy_mmap(start) == -1 {
+                println!(
+                    "[kernel] trap_handler:  {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.",
+                    scause.cause(),
+                    stval,
+                    current_trap_cx().sepc,
+                );
+                // page fault exit code
+                exit_current_and_run_next(-2);
+            }
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             println!("[kernel] IllegalInstruction in application, kernel killed it.");
