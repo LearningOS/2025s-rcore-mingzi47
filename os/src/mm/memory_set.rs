@@ -40,7 +40,7 @@ pub fn kernel_token() -> usize {
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
-    map_tree: BTreeMap<VirtPageNum, FrameTracker>,
+    map_tree: BTreeMap<VirtPageNum, (Option<FrameTracker>, PTEFlags)>,
 }
 
 impl MemorySet {
@@ -81,7 +81,7 @@ impl MemorySet {
         }
     }
 
-    ///
+    /// 基于 Lazy 策略映射物理空间
     pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> isize {
         let start_va: VirtAddr = start.into();
         if !start_va.aligned() {
@@ -99,29 +99,24 @@ impl MemorySet {
         let end_vpn: VirtPageNum = end_va.ceil();
 
         while start_vpn < end_vpn {
+            let va: usize = start_vpn.into();
+            debug!("should map, va = {:#x}", va);
+            if self.map_tree.contains_key(&start_vpn) {
+                debug!("already in map_tree, but not in page_table, vpn = {:#?}", start_vpn.0);
+                return -1;
+            }
+
             if let Some(pte) = self.page_table.translate(start_vpn) {
                 // 当前物理页被映射过了
                 if pte.is_valid() {
                     let va: usize = start_vpn.into();
-                    debug!("already map, va = {} ", va);
+                    debug!("already map, va = {:#x}, map_tree.size = {}", va, self.map_tree.len());
                     return -1;
                 }
             }
 
-            // 分配物理页
-            if let Some(frame_tracker) = frame_alloc() {
-                let ppn = frame_tracker.ppn;
-                self.page_table.map(
-                    start_vpn,
-                    ppn,
-                    permission
-                );
-
-                self.map_tree.insert(start_vpn, frame_tracker);
-            } else {
-                debug!("alloc failed");
-                return -1;
-            }
+            debug!("permission : {:#?}", permission);
+            self.map_tree.insert(start_vpn, (None, permission));
 
             start_vpn.step()
         }
@@ -129,7 +124,7 @@ impl MemorySet {
         0
     }
 
-    /// 
+    /// 删除 mmap 的物理空间映射
     pub fn munmap(&mut self, start: usize, len: usize) -> isize {
         let start_va: VirtAddr = start.into();
         if !start_va.aligned() {
@@ -142,22 +137,53 @@ impl MemorySet {
         let end_vpn = end_va.ceil();
         
         while start_vpn < end_vpn {
-            if let Some(pte) = self.page_table.translate(start_vpn) {
-                // 存在没有映射的地址
-                if !pte.is_valid() {
-                    let va : usize = start_va.into();
-                    debug!("no map, va = {}", va);
-                    return -1;
+            if let Some((frame, _)) = self.map_tree.get(&start_vpn) {
+                if frame.is_some() {
+                    debug!("va = {:#x} in page_table", start_vpn.0);
+                    self.page_table.unmap(start_vpn);
                 }
+                self.map_tree.remove(&start_vpn);
+            } else {
+                return -1;
             }
-
-            self.page_table.unmap(start_vpn);
-            self.map_tree.remove(&start_vpn);
 
             start_vpn.step();
         }
 
         0
+    }
+
+    /// Lazy 策略实际内存分配函数
+    pub fn lazy_mmap(&mut self, addr: usize) -> isize {
+        let addr_va: VirtAddr = addr.into();
+
+        let addr_vpn: VirtPageNum = addr_va.ceil();
+        if let Some((frame, perm)) = self.map_tree
+            .get_mut(&addr_vpn)
+        {
+            if frame.is_some() {
+                return -1;
+            }
+
+            if let Some(frame_tracker) = frame_alloc() {
+                let ppn = frame_tracker.ppn;
+                *frame = Some(frame_tracker);
+                debug!("lazy map vpn = {:#x}, ppn = {:#?}", addr_vpn.0, ppn);
+                self.page_table.map(
+                    addr_vpn,
+                    ppn,
+                    perm.clone(),
+                );
+
+                0
+            } else {
+                debug!("alloc failed");
+                -1
+            }
+        } else {
+            debug!("no find vpn in map_tree");
+            return -1;
+        }
     }
 
     /// Add a new MapArea into this MemorySet.
