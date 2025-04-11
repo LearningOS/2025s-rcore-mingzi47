@@ -115,15 +115,3 @@ lazy_static! {
 pub fn add_initproc() {
     add_task(INITPROC.clone());
 }
-
-/// start_va: 开始的虚拟地址
-/// end_va: 结束的虚拟地址
-/// perm: 权限
-pub fn mmap(start: usize, len: usize, port: usize) -> isize {
-    TASK_MANAGER.mmap(start, len, port)
-}
-
-/// 
-pub fn munmap(start: usize, len: usize) -> isize {
-    TASK_MANAGER.munmap(start, len)
-}

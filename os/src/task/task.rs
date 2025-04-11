@@ -250,6 +250,27 @@ impl TaskControlBlock {
         // **** release child PCB
         // ---- release parent PCB
     }
+
+    /// 
+    pub fn mmap(
+        self: &Arc<Self>,
+        start: usize,
+        len: usize,
+        port: usize,
+    ) -> isize {
+        let mut t_inner = self.inner_exclusive_access();
+        t_inner.memory_set.mmap(start, len, port)
+    }
+
+    ///
+    pub fn munmap(
+        self: &Arc<Self>,
+        start: usize,
+        len: usize,
+    ) -> isize {
+        let mut t_inner = self.inner_exclusive_access();
+        t_inner.memory_set.munmap(start, len)
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
