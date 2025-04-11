@@ -236,6 +236,20 @@ impl TaskControlBlock {
             None
         }
     }
+
+    /// 
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let task_control_block = Arc::new(TaskControlBlock::new(elf_data));
+        // ---- access parent PCB exclusively
+        let mut parent_inner = self.inner_exclusive_access();
+        // add child
+        parent_inner.children.push(task_control_block.clone());
+       
+        // return
+        task_control_block
+        // **** release child PCB
+        // ---- release parent PCB
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
