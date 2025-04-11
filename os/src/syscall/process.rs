@@ -7,11 +7,10 @@ use alloc::sync::Arc;
 use crate::{
     fs::{open_file, OpenFlags},
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_byte_buffer, translated_str, translated_byte_and_check, PTEFlags},
+    mm::{translated_refmut, translated_byte_buffer, translated_str },
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-        mmap, munmap,
     },
     timer::get_time_us,
 };
@@ -165,7 +164,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
         return -1;
     }
 
-    mmap(start, len, port)
+    current_task().unwrap().mmap(start, len, port)
 }
 
 /// 
@@ -175,7 +174,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
         current_task().unwrap().pid.0
     );
 
-    munmap(start, len)
+    current_task().unwrap().munmap(start, len)
 }
 
 /// change data segment size
