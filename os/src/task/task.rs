@@ -296,6 +296,12 @@ impl TaskControlBlock {
         let mut t_inner = self.inner_exclusive_access();
         t_inner.memory_set.munmap(start, len)
     }
+
+    ///
+    pub fn mmap_lazy_alloc(self: &Arc<Self>, addr: usize) -> isize {
+        let mut t_inner = self.inner_exclusive_access();
+        t_inner.memory_set.mmap_lazy_alloc(addr)
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]

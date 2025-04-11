@@ -154,7 +154,7 @@ impl MemorySet {
     }
 
     /// Lazy 策略实际内存分配函数
-    pub fn lazy_mmap(&mut self, addr: usize) -> isize {
+    pub fn mmap_lazy_alloc(&mut self, addr: usize) -> isize {
         let addr_va: VirtAddr = addr.into();
 
         let addr_vpn: VirtPageNum = addr_va.ceil();
