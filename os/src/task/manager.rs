@@ -19,11 +19,27 @@ impl TaskManager {
     }
     /// Add process back to ready queue
     pub fn add(&mut self, task: Arc<TaskControlBlock>) {
-        self.ready_queue.push_back(task);
+        let mut inner = task.inner_exclusive_access();
+        inner.stride.add_pass();
+        
+        self.ready_queue.push_back(task.clone());
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        self.ready_queue.pop_front()
+        if let Some(task) = self.ready_queue.iter().min_by(|lhs, rhs|{
+            let lhs_inner = lhs.inner_exclusive_access();
+            let rhs_inner = rhs.inner_exclusive_access();
+            lhs_inner.stride.cmp(&rhs_inner.stride)
+        })
+        {
+
+            self.ready_queue.iter()
+                .position(|e| { e.getpid() == task.getpid() })
+                .map(|i| self.ready_queue.remove(i))
+                .unwrap()
+        } else {
+            None
+        }
     }
 }
 

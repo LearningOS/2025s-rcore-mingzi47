@@ -21,6 +21,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 #[allow(rustdoc::private_intra_doc_links)]
 mod task;
+mod scheduling;
 
 use crate::fs::{open_file, OpenFlags};
 use alloc::sync::Arc;
