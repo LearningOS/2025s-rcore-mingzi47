@@ -237,7 +237,7 @@ impl TaskControlBlock {
         }
     }
 
-    /// 
+    /// 创建一个新的子任务并添加到当前任务的子任务列表中
     pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
         let task_control_block = Arc::new(TaskControlBlock::new(elf_data));
         // ---- access parent PCB exclusively
@@ -251,7 +251,10 @@ impl TaskControlBlock {
         // ---- release parent PCB
     }
 
-    /// 
+    /// 申请一段空间，从 start 开始，长度位 len 
+    /// 区间内存在被申请过的地址，失败返回 -1
+    /// start 没有页对齐，失败返回 -1
+    /// 成功返回 0
     pub fn mmap(
         self: &Arc<Self>,
         start: usize,
@@ -262,7 +265,9 @@ impl TaskControlBlock {
         t_inner.memory_set.mmap(start, len, port)
     }
 
-    ///
+    /// 释放 mmap 申请的空间, 从 start 开始，长度位 len
+    /// 区间内存存在未被 mmap 申请过的地址，失败返回 -1
+    /// 成功返回 0
     pub fn munmap(
         self: &Arc<Self>,
         start: usize,
@@ -272,7 +277,7 @@ impl TaskControlBlock {
         t_inner.memory_set.munmap(start, len)
     }
 
-    ///
+    /// 映射 mmap 申请的虚拟内存地址
     pub fn mmap_lazy_alloc(self: &Arc<Self>, addr: usize) -> isize {
         let mut t_inner = self.inner_exclusive_access();
         t_inner.memory_set.mmap_lazy_alloc(addr)
