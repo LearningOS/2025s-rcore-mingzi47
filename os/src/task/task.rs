@@ -1,4 +1,5 @@
 //! Types related to task management & Functions for completely changing TCB
+use super::scheduling::Stride;
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
@@ -68,6 +69,9 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Stride Sheduling
+    pub stride: Stride,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +122,7 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: Stride::new(),
                 })
             },
         };
@@ -191,6 +196,7 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: Stride::new(),
                 })
             },
         });
@@ -281,6 +287,17 @@ impl TaskControlBlock {
     pub fn mmap_lazy_alloc(self: &Arc<Self>, addr: usize) -> isize {
         let mut t_inner = self.inner_exclusive_access();
         t_inner.memory_set.mmap_lazy_alloc(addr)
+    }
+
+    /// 给当前任务设置优先级
+    /// 成功返回 prio, 失败返回 -1
+    pub fn set_priority(self: &Arc<Self>, prio: isize) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        if inner.stride.set_stride(prio) == -1 {
+            -1
+        } else {
+            prio
+        }
     }
 }
 
