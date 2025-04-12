@@ -156,6 +156,12 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 ///     - 在`trap_handler` 的缺页异常处理中调用 `lazy_mmap` 来实际映射物理内存;
 /// 需要注意：只有在 U 态可以正常触发缺页异常，因此为了在 S 态正常使用 mmap
 /// 申请的内存，还需有额外实现函数。这里使用了`translate_with_mmap` 。
+///
+/// 申请一段空间，从 start 开始，长度位 len 
+/// 区间内存在被申请过的地址，失败返回 -1
+/// start 没有页对齐，失败返回 -1
+/// port 不合法, 失败返回 -1
+/// 成功返回 0
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
@@ -173,7 +179,9 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     current_task().unwrap().mmap(start, len, port)
 }
 
-/// 卸载 mmap 映射的内存
+/// 释放 mmap 申请的空间, 从 start 开始，长度位 len
+/// 区间内存存在未被 mmap 申请过的地址，失败返回 -1
+/// 成功返回 0
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
