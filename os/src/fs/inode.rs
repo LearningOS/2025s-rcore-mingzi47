@@ -4,14 +4,14 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, Stat, StatMode};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 use alloc::vec::Vec;
 use bitflags::*;
-use easy_fs::{EasyFileSystem, Inode};
+use easy_fs::{EasyFileSystem, Inode, InodeType };
 use lazy_static::*;
 
 /// inode in memory
@@ -20,6 +20,7 @@ use lazy_static::*;
 pub struct OSInode {
     readable: bool,
     writable: bool,
+    path: String,
     inner: UPSafeCell<OSInodeInner>,
 }
 /// The OS inode inner in 'UPSafeCell'
@@ -30,10 +31,11 @@ pub struct OSInodeInner {
 
 impl OSInode {
     /// create a new inode in memory
-    pub fn new(readable: bool, writable: bool, inode: Arc<Inode>) -> Self {
+    pub fn new(readable: bool, writable: bool, path: String, inode: Arc<Inode>) -> Self {
         Self {
             readable,
             writable,
+            path,
             inner: unsafe { UPSafeCell::new(OSInodeInner { offset: 0, inode }) },
         }
     }
@@ -108,24 +110,60 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
         if let Some(inode) = ROOT_INODE.find(name) {
             // clear size
             inode.clear();
-            Some(Arc::new(OSInode::new(readable, writable, inode)))
+            Some(Arc::new(OSInode::new(readable, writable, String::from(name), inode)))
         } else {
             // create file
             ROOT_INODE
                 .create(name)
-                .map(|inode| Arc::new(OSInode::new(readable, writable, inode)))
+                .map(|inode| Arc::new(OSInode::new(readable, writable,String::from(name), inode)))
         }
     } else {
         ROOT_INODE.find(name).map(|inode| {
             if flags.contains(OpenFlags::TRUNC) {
                 inode.clear();
             }
-            Arc::new(OSInode::new(readable, writable, inode))
+            Arc::new(OSInode::new(readable, writable, String::from(name), inode))
         })
     }
 }
 
+/// create a hard link
+pub fn linkat(old_name: &str, new_name: &str) -> isize {
+    if ROOT_INODE.linkat(old_name, new_name).is_none() {
+        -1
+    } else {
+        0
+    }
+}
+
+/// remove a hard link
+pub fn unlinkat(name: &str) -> isize {
+    ROOT_INODE.unlinkat(name)
+}
+
+
+/// get file stat
+pub fn get_stat(name: &str) -> Option<Stat> {
+    if let Some(stat) = ROOT_INODE.get_inode_stat(name) {
+        let mode = match stat.mode {
+            InodeType::FILE => StatMode::FILE,
+            InodeType::DIR => StatMode::DIR,
+        };
+
+        Some(Stat::new(
+            stat.ino as u64,
+            mode,
+            stat.nlink,
+        ))
+    } else {
+        None
+    }
+}
+
 impl File for OSInode {
+    fn path(&self) -> String {
+        self.path.clone()
+    }
     fn readable(&self) -> bool {
         self.readable
     }

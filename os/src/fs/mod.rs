@@ -7,6 +7,10 @@ use crate::mm::UserBuffer;
 
 /// trait File for all file types
 pub trait File: Send + Sync {
+    /// the file path
+    fn path(&self) -> String {
+        String::new()
+    }
     /// the file readable?
     fn readable(&self) -> bool;
     /// the file writable?
@@ -33,6 +37,20 @@ pub struct Stat {
     pad: [u64; 7],
 }
 
+impl Stat {
+    /// create a stat
+    pub fn new(ino: u64, mode: StatMode, nlink: u32) -> Self {
+        Self {
+            dev: 0,
+            ino,
+            mode,
+            nlink,
+            pad: [0u64; 7],
+        }
+
+    }
+}
+
 bitflags! {
     /// The mode of a inode
     /// whether a directory or a file
@@ -46,5 +64,6 @@ bitflags! {
     }
 }
 
-pub use inode::{list_apps, open_file, OSInode, OpenFlags};
+use alloc::string::String;
+pub use inode::{list_apps, open_file, linkat, unlinkat, get_stat, OSInode, OpenFlags};
 pub use stdio::{Stdin, Stdout};
