@@ -73,6 +73,33 @@ impl Inode {
             })
         })
     }
+    /// get inode undre current inode_id by name
+    pub fn get_inode_stat(&self, name: &str) -> Option<InodeStat> {
+        let _fs = self.fs.lock();
+        let inode_id = self.read_disk_inode(|disk_inode| {
+            self.find_inode_id(name, disk_inode)
+        });
+
+        if inode_id.is_none() {
+            return None;
+        }
+
+        let inode_id = inode_id.unwrap();
+        let (blk_id, blk_offset) = _fs.get_disk_inode_pos(inode_id);
+        get_block_cache(blk_id as usize, Arc::clone(&self.block_device))
+            .lock()
+            .read(blk_offset, |disk_inode: &DiskInode| {
+                Some(InodeStat::new(
+                    inode_id,
+                    if disk_inode.is_file() {
+                        InodeType::FILE
+                    } else {
+                        InodeType::DIR
+                    },
+                    disk_inode.link_num(),
+                ))
+            })
+    }
     /// Increase the size of a disk inode
     fn increase_size(
         &self,
@@ -216,8 +243,8 @@ impl Inode {
         get_block_cache(block_id as usize, Arc::clone(&self.block_device))
             .lock()
             .modify(block_offset, |disk_inode :&mut DiskInode|{
-                if disk_inode.link_num() == 0 {
-                    // only a file, no link, remove file
+                if disk_inode.link_num() == 1 {
+                    // only a link remove file
                     let size = disk_inode.size;
                     let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
                     assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
@@ -351,5 +378,32 @@ impl Inode {
             }
         });
         block_cache_sync_all();
+    }
+}
+
+
+/// Inode stat
+pub struct InodeStat {
+    pub ino: u32,
+    pub mode: InodeType,
+    pub nlink: u32,
+}
+
+/// Inode Disk Type
+pub enum InodeType {
+    /// file
+    FILE,
+    /// dir
+    DIR,
+}
+
+impl InodeStat {
+    /// create new stat
+    pub fn new(ino: u32, mode: InodeType, nlink: u32) -> Self {
+        Self {
+            ino,
+            mode,
+            nlink,
+        }
     }
 }

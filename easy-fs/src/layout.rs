@@ -98,6 +98,7 @@ impl DiskInode {
         self.indirect1 = 0;
         self.indirect2 = 0;
         self.type_ = type_;
+        self.link_num = 1;
     }
     /// link number
     pub fn link_num(&self) -> u32 {
