@@ -103,6 +103,29 @@ fn efs_test() -> std::io::Result<()> {
     let root_inode = EasyFileSystem::root_inode(&efs);
     root_inode.create("filea");
     root_inode.create("fileb");
+
+
+    // link test
+    root_inode.linkat("filea", "linka");
+    assert_eq!(root_inode.link_num("filea"), 1);
+    root_inode.linkat("filea", "linkb");
+    assert_eq!(root_inode.link_num("filea"), 2);
+    root_inode.linkat("linka", "linkc");
+    assert_eq!(root_inode.link_num("linkb"), 3);
+    root_inode.linkat("filea", "linkd");
+    assert_eq!(root_inode.link_num("linka"), 4);
+
+    root_inode.unlinkat("linkc");
+    assert_eq!(root_inode.link_num("filea"), 3);
+    root_inode.unlinkat("linkd");
+    assert_eq!(root_inode.link_num("linka"), 2);
+
+    let res = root_inode.linkat("link100", "link10");
+    assert_eq!(res.is_none(), true);
+    assert_eq!( root_inode.unlinkat("link20"), -1);
+    root_inode.unlinkat("fileb");
+    assert_eq!(root_inode.linkat("fileb", "link100").is_none(), true);
+
     for name in root_inode.ls() {
         println!("{}", name);
     }
@@ -113,6 +136,16 @@ fn efs_test() -> std::io::Result<()> {
     let mut buffer = [0u8; 233];
     let len = filea.read_at(0, &mut buffer);
     assert_eq!(greet_str, core::str::from_utf8(&buffer[..len]).unwrap(),);
+    
+    let linka = root_inode.find("linka").unwrap();
+    let mut buffer = [0u8; 233];
+    let len = linka.read_at(0, &mut buffer);
+    assert_eq!(greet_str, core::str::from_utf8(&buffer[..len]).unwrap(),);
+    println!("------Apps-----");
+    for name in root_inode.ls() {
+        println!("{}", name)
+    }
+    println!("------End------");
 
     let mut random_str_test = |len: usize| {
         filea.clear();

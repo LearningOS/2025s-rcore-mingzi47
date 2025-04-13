@@ -86,6 +86,7 @@ pub struct DiskInode {
     pub indirect1: u32,
     pub indirect2: u32,
     type_: DiskInodeType,
+    link_num: u32, // link number, no link, value is 0
 }
 
 impl DiskInode {
@@ -97,6 +98,19 @@ impl DiskInode {
         self.indirect1 = 0;
         self.indirect2 = 0;
         self.type_ = type_;
+    }
+    /// link number
+    pub fn link_num(&self) -> u32 {
+        self.link_num
+    }
+    /// add a link number
+    pub fn add_link_num(&mut self) {
+        self.link_num += 1;
+    }
+    /// del a link number
+    #[allow(unused)]
+    pub fn del_link_num(&mut self) {
+        self.link_num -= 1;
     }
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {

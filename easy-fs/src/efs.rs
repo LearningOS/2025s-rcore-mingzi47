@@ -129,6 +129,13 @@ impl EasyFileSystem {
     pub fn alloc_inode(&mut self) -> u32 {
         self.inode_bitmap.alloc(&self.block_device).unwrap() as u32
     }
+    /// Deallocate a inode
+    pub fn dealloc_inode(&mut self, bits: u32) {
+        self.inode_bitmap.dealloc(
+            &self.block_device,
+            bits as usize,
+        );
+    }
 
     /// Allocate a data block
     pub fn alloc_data(&mut self) -> u32 {
