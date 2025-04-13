@@ -1,4 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
+use core::mem;
+
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::string::String;
 use alloc::vec;
@@ -215,6 +217,37 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+
+
+/// Translate src_ptr a bytes buffer, and dst_ptr write to src_ptr
+pub fn translated_byte_buffer_then_write<T>(
+    token: usize,
+    src_ptr: *mut T,
+    dst_ptr: *const T
+)
+    where
+        T: Sized
+{
+    let len = mem::size_of::<T>();
+    let buffers = translated_byte_buffer(token, src_ptr as *const u8, len);
+
+    let tmp_data = unsafe {
+        core::slice::from_raw_parts(
+            dst_ptr as *const u8,
+            len,
+        )
+    };
+
+    // 写入应用空间内存
+    let mut tmp_i = 0;
+    for buffer in buffers {
+        for b in buffer {
+            *b = tmp_data[tmp_i];
+            tmp_i+=1;
+        }
+    }
+
 }
 
 /// An abstraction over a buffer passed from user space to kernel space
