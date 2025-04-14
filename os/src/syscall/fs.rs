@@ -3,7 +3,6 @@ use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserB
 use crate::task::{current_process, current_task, current_user_token};
 use alloc::sync::Arc;
 /// write syscall
-//! File and filesystem-related syscalls
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_write",
