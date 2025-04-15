@@ -7,7 +7,7 @@ use super::{add_task, SignalFlags};
 use super::{pid_alloc, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{translated_refmut, MemorySet, KERNEL_SPACE};
-use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell};
+use crate::sync::{Condvar, LockDep, LockDepBanker, Mutex, Semaphore, UPSafeCell};
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::String;
 use alloc::sync::{Arc, Weak};
@@ -49,6 +49,10 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    // mutex lockdep
+    pub mutex_lockdep: Option<Arc<dyn LockDep>>,
+    // semaphore lockdep
+    pub semaphore_lockdep: Option<Arc<dyn LockDep>>,
 }
 
 impl ProcessControlBlockInner {
@@ -119,6 +123,8 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    mutex_lockdep: None,
+                    semaphore_lockdep: None,
                 })
             },
         });
@@ -245,6 +251,8 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    mutex_lockdep: None,
+                    semaphore_lockdep: None,
                 })
             },
         });
@@ -281,5 +289,36 @@ impl ProcessControlBlock {
     /// get pid
     pub fn getpid(&self) -> usize {
         self.pid.0
+    }
+
+    /// enabled deadlock detect
+    pub fn enabled_deadlock_detect(&self, enabled: usize) -> isize {
+        let mut p_inner = self.inner_exclusive_access();
+
+        match enabled {
+            // start
+            1 => {
+                if p_inner.mutex_lockdep.is_none() {
+                    p_inner.mutex_lockdep = Some(Arc::new(
+                        LockDepBanker::new()
+                    ));
+                    p_inner.semaphore_lockdep = Some(Arc::new(
+                        LockDepBanker::new()
+                    ));
+                }
+
+                0
+            },
+
+            // close
+            0 => {
+                p_inner.mutex_lockdep = None;
+                p_inner.semaphore_lockdep = None;
+
+                0
+            },
+
+            _ => -1,
+        }
     }
 }
